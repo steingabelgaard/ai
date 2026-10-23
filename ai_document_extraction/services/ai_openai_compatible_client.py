@@ -1,9 +1,14 @@
 # Copyright 2026 VSL
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
+import logging
+from base64 import b64encode
+
 import requests
 
 from odoo.addons.ai_connection.client import AiConnectionClient
+
+_logger = logging.getLogger(__name__)
 
 
 class AiOpenAICompatibleClient(AiConnectionClient):
@@ -48,9 +53,14 @@ class AiOpenAICompatibleClient(AiConnectionClient):
             if self.keep_alive:
                 payload["keep_alive"] = self.keep_alive
         headers = {}
-        if self.api_key and self.api_key != "dummy":
+        if ":" in self.api_key:
+            key = b64encode(self.api_key.encode()).decode()
+            headers["Authorization"] = f"Basic {key}"
+        elif self.api_key and self.api_key != "dummy":
             headers["Authorization"] = f"Bearer {self.api_key}"
         url = f"{self.url.rstrip('/')}/chat/completions"
+        # _logger.info("Sending request to %s with header: %s and payload: %s",
+        #              url, headers, payload)
         last_error = None
         for _attempt in range(2):
             try:
