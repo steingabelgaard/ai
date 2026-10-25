@@ -1,11 +1,15 @@
 # Copyright 2026 VSL
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
+import io
 import json
 import logging
 import os
 import re
 import tempfile
+
+from pdf2image import convert_from_path, pdfinfo_from_path
+from PIL import Image
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
@@ -210,7 +214,6 @@ class AccountMove(models.Model):
 
     def _ai_resize_image(self, path, max_dimension=1280):
         """Cap the image size to keep vision-model tokens and latency low."""
-        from PIL import Image
 
         with Image.open(path) as image:
             image = image.convert("RGB")
@@ -238,15 +241,28 @@ class AccountMove(models.Model):
             with open(file_path, "wb") as file_handle:
                 file_handle.write(data)
             if extension == "pdf":
-                from pdf2image import convert_from_path
-
+                pdfinfo = pdfinfo_from_path(file_path)
+                _logger.info("PDF info: %s", pdfinfo)
                 images = convert_from_path(
-                    file_path, dpi=200, first_page=1, last_page=1
+                    file_path, dpi=200, first_page=1, last_page=(pdfinfo["Pages"])
                 )
                 if not images:
                     raise UserError(self.env._("The PDF could not be rendered."))
                 png_path = f"{file_path}.png"
-                images[0].save(png_path, "PNG")
+                if len(images) > 1:
+                    _logger.info("PDF has multiple pages, saving each page separately.")
+                    new_image = Image.new(
+                        "RGB",
+                        (images[0].width, images[0].height * len(images)),
+                        (255, 255, 255),
+                    )
+                    for i, image in enumerate(images):
+                        new_image.paste(image, (0, i * images[0].height))
+                        # image.save(f"/backup/page_{i}.png", "PNG")
+                    new_image.save(png_path, "PNG")
+                else:
+                    _logger.info("PDF has a single page.")
+                    images[0].save(png_path, "PNG")
                 os.unlink(file_path)
                 file_path = png_path
             return self._ai_resize_image(file_path)
@@ -274,10 +290,6 @@ class AccountMove(models.Model):
                 encoded = base64.b64encode(image_file.read()).decode()
             mime = self._ai_mime_from_extension(image_path)
         else:
-            import io
-
-            from PIL import Image
-
             buffer = io.BytesIO()
             with Image.open(image_path) as image:
                 image.convert("RGB").save(buffer, "JPEG", quality=90)
