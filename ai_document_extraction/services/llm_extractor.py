@@ -63,6 +63,9 @@ _MODEL_NAMES = {
 _LEGAL_SUFFIXES = (
     "a.ş.",
     "a.s.",
+    "as",
+    "aps",
+    "a/s",
     "ltd.",
     "ltd",
     "gmbh",
