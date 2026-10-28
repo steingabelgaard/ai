@@ -463,6 +463,7 @@ class AccountMove(models.Model):
     def _ai_retrieve_product(self, partner, code):
 
         # _logger.info('RETRIVE: %s - %s', partner, code)
+        prodsupp = False
         if code:
             prodsupp = self.env['product.supplierinfo'].search(
                 [
@@ -473,7 +474,7 @@ class AccountMove(models.Model):
                 ],
                 limit=1,
             )
-        else:
+        if not prodsupp:
             _logger.info("SEARCH PRODSUPP 2")
             prodsupp = self.env['product.supplierinfo'].search(
                 [
