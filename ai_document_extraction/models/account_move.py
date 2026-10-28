@@ -460,6 +460,49 @@ class AccountMove(models.Model):
                     return self.env["account.tax"].browse(tax["id"])
         return self.env["account.tax"]
 
+    def _ai_retrieve_product(self, partner, code):
+
+        # _logger.info('RETRIVE: %s - %s', partner, code)
+        if code:
+            prodsupp = self.env['product.supplierinfo'].search(
+                [
+                    ('partner_id', '=', partner.id),
+                    '|',
+                    ('product_code', '=ilike', code),
+                    ('product_name', '=ilike', code),
+                ],
+                limit=1,
+            )
+        else:
+            _logger.info("SEARCH PRODSUPP 2")
+            prodsupp = self.env['product.supplierinfo'].search(
+                [
+                    ('product_id', '=', partner.id),
+                    ('product_code', '=', False),
+                ],
+                limit=1,
+            )
+        _logger.info('PRODSUPP: %s', prodsupp)
+        if prodsupp:
+            if prodsupp.product_id:
+                return prodsupp.product_id
+            else:
+                return prodsupp.product_tmpl_id.product_variant_id
+        if code:
+            domain = [
+                ('company_id', 'in', [False, self.env.company.id]),
+                '|', '|',
+                ('name', 'ilike', code),
+                ('default_code', '=', code),
+                ('barcode', '=', code),
+            ]
+            # _logger.info('DOMAIN: %s', domain)
+            return self.env['product.product'].with_context(
+                search_in_company=self.env.company
+            ).search(domain, limit=1)
+        else:
+            return False
+
     def _ai_set_lines(self, lines, description=None):
         self.ensure_one()
         account = self._ai_get_line_account()
@@ -471,17 +514,26 @@ class AccountMove(models.Model):
             if quantity is None and price_unit is None:
                 continue
             tax = self._ai_resolve_tax(line.get("tax_id"), line.get("tax_rate"))
+            product = False
+            if self.partner_id:
+                product = self._ai_retrieve_product(self.partner_id, name)
+            line_vals = {
+                "name": name,
+                "product_id": product.id if product else False,
+                "account_id": account.id,
+                "quantity": quantity if quantity else 1.0,
+                "price_unit": price_unit if price_unit else 0.0,
+                "tax_ids": [(6, 0, tax.ids)] if tax else [],
+            }
+            if product:
+                line_vals['product_id'] = product.id
+            else:
+                line_vals['account_id'] = account.id
             commands.append(
                 (
                     0,
                     0,
-                    {
-                        "name": name,
-                        "account_id": account.id,
-                        "quantity": quantity if quantity else 1.0,
-                        "price_unit": price_unit if price_unit else 0.0,
-                        "tax_ids": [(6, 0, tax.ids)] if tax else [],
-                    },
+                    line_vals,
                 )
             )
         self.line_ids = commands
