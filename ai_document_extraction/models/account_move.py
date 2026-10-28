@@ -478,7 +478,7 @@ class AccountMove(models.Model):
             _logger.info("SEARCH PRODSUPP 2")
             prodsupp = self.env['product.supplierinfo'].search(
                 [
-                    ('product_id', '=', partner.id),
+                    ('partner_id', '=', partner.id),
                     ('product_code', '=', False),
                 ],
                 limit=1,
