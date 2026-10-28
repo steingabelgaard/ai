@@ -3,6 +3,8 @@
 
 import json
 from datetime import date, datetime
+import logging
+_logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "/no_think\n"
@@ -46,6 +48,7 @@ _MODEL_NAMES = {
     "qwen2",
     "qwen2.5",
     "qwen3",
+    "qwen3.8-flash",
     "qwen3-vl",
     "llama",
     "llama3",
@@ -123,6 +126,7 @@ def _parse_json_response(content):
                 continue
             if not isinstance(data, dict):
                 raise ValueError("LLM response is not a JSON object")
+            _logger.info("Parsed JSON data from LLM response: %s", data)
             for field in EXPECTED_FIELDS:
                 data.setdefault(field, None)
             if not isinstance(data.get("lines"), list):
